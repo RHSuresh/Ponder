@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ponder - Note Taking App</title>
+
+    <!-- FullCalendar CDN -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.js"></script>
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="styles/style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <div class="logo-container">
+            <h2
+              style="color: var(--primary-color); font-weight: 600; margin: 0"
+            >
+              Ponder
+            </h2>
+          </div>
+
+          <!-- Simplified Theme Toggle -->
+          <label class="switch">
+            <input id="theme-toggle" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Folder Management -->
+        <div class="directories">
+          <button id="new-folder-btn">+ New Folder</button>
+          <div id="folder-list"></div>
+        </div>
+
+        <!-- Notes List -->
+        <div class="notes-list" id="notes-list">
+          <!-- Notes will be dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Main Editor Area -->
+      <div class="editor">
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="notes">Notes</button>
+          <button class="tab-btn" data-tab="calendar">Calendar</button>
+        </div>
+
+        <!-- Notes Tab Content -->
+        <div class="tab-content" id="notes-tab">
+          <!-- Note Header -->
+          <div class="editor-header">
+            <input
+              type="text"
+              id="note-title"
+              placeholder="Enter note title..."
+              autocomplete="off"
+            />
+            <div class="editor-buttons">
+              <button id="save-note-btn">Save</button>
+              <button id="delete-note-btn" class="delete-btn">Delete</button>
+              <button id="new-note-btn">New Note</button>
+            </div>
+          </div>
+
+          <!-- Formatting Toolbar -->
+          <div class="formatting-toolbar">
+            <!-- Font Controls -->
+            <div class="toolbar-group">
+              <select id="font-family" title="Font Family">
+                <option value="Arial">Arial</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Verdana">Verdana</option>
+                <option value="Helvetica">Helvetica</option>
+                <option value="-apple-system">System Font</option>
+              </select>
+
+              <select id="font-size" title="Font Size">
+                <option value="12px">12px</option>
+                <option value="14px">14px</option>
+                <option value="16px" selected>16px</option>
+                <option value="18px">18px</option>
+                <option value="20px">20px</option>
+                <option value="24px">24px</option>
+                <option value="28px">28px</option>
+                <option value="32px">32px</option>
+              </select>
+            </div>
+
+            <!-- Text Formatting -->
+            <div class="toolbar-group">
+              <button id="bold-btn" class="format-btn" title="Bold (Ctrl+B)">
+                <strong>B</strong>
+              </button>
+              <button
+                id="italic-btn"
+                class="format-btn"
+                title="Italic (Ctrl+I)"
+              >
+                <em>I</em>
+              </button>
+              <button id="underline-btn" class="format-btn" title="Underline">
+                <u>U</u>
+              </button>
+            </div>
+
+            <!-- Text Alignment -->
+            <div class="toolbar-group">
+              <button id="align-left-btn" class="format-btn" title="Align Left">
+                ⬅
+              </button>
+              <button id="align-center-btn" class="format-btn" title="Center">
+                ⬌
+              </button>
+              <button
+                id="align-right-btn"
+                class="format-btn"
+                title="Align Right"
+              >
+                ➡
+              </button>
+            </div>
+
+            <!-- Colors -->
+            <div class="toolbar-group">
+              <label for="text-color" class="color-label">Text</label>
+              <input
+                type="color"
+                id="text-color"
+                value="#2c3e50"
+                title="Text Color"
+              />
+              <label for="bg-color" class="color-label">Highlight</label>
+              <input
+                type="color"
+                id="bg-color"
+                value="#ffff00"
+                title="Background Color"
+              />
+            </div>
+
+            <!-- Lists -->
+            <div class="toolbar-group">
+              <button
+                id="bullet-list-btn"
+                class="format-btn"
+                title="Bullet List"
+              >
+                • List
+              </button>
+              <button
+                id="number-list-btn"
+                class="format-btn"
+                title="Numbered List"
+              >
+                1. List
+              </button>
+            </div>
+          </div>
+
+          <!-- Note Editor -->
+          <div class="editor-content">
+            <div
+              id="note-content"
+              contenteditable="true"
+              data-placeholder="Start writing your note..."
+              spellcheck="true"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Calendar Tab Content -->
+        <div class="tab-content hidden" id="calendar-tab">
+          <div class="calendar-toolbar">
+            <button id="import-ics-btn">Import .ics File</button>
+            <span class="hint"
+              >Click any date to add an event, click existing events to
+              edit</span
+            >
+          </div>
+          <div id="calendar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Scripts -->
+    <script src="scripts/renderer.js"></script>
+  </body>
+</html>
