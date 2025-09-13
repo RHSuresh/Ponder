@@ -106,7 +106,7 @@ async function getFoldersPath() {
   const foldersPath = path.join(userDataPath, 'folders.json');
   
   if (!(await fs.pathExists(foldersPath))) {
-    await fs.writeJson(foldersPath, ['Default'], { spaces: 2 });
+    await fs.writeJson(foldersPath, ['General'], { spaces: 2 });
   }
   
   return foldersPath;
@@ -155,7 +155,7 @@ ipcMain.handle('save-note', async (event, note) => {
       title: note.title.trim(),
       content: note.content || '',
       lastModified: new Date().toISOString(),
-      folder: note.folder || 'Default',
+      folder: note.folder || 'General',
       created: note.created || new Date().toISOString(),
     };
 
@@ -205,6 +205,41 @@ ipcMain.handle('delete-note', async (event, title) => {
   }
 });
 
+ipcMain.handle('move-note', async (event, noteTitle, targetFolder) => {
+  try {
+    if (!noteTitle || typeof noteTitle !== 'string') {
+      return { success: false, error: 'Invalid note title' };
+    }
+
+    if (!targetFolder || typeof targetFolder !== 'string') {
+      return { success: false, error: 'Invalid target folder' };
+    }
+
+    const notesDir = await getNotesDir();
+    const filename = sanitizeFilename(noteTitle);
+    const filePath = path.join(notesDir, filename);
+
+    if (!(await fs.pathExists(filePath))) {
+      return { success: false, error: 'Note not found' };
+    }
+
+    // Read the existing note
+    const noteData = await fs.readJson(filePath);
+    
+    // Update the folder
+    noteData.folder = targetFolder;
+    noteData.lastModified = new Date().toISOString();
+
+    // Save the updated note
+    await fs.writeJson(filePath, noteData, { spaces: 2 });
+
+    return { success: true, note: noteData };
+  } catch (error) {
+    console.error('Move note error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('get-all-notes', async () => {
   try {
     const notesDir = await getNotesDir();
@@ -222,7 +257,7 @@ ipcMain.handle('get-all-notes', async () => {
         if (typeof noteData.title === 'string') {
           notes.push({
             ...noteData,
-            folder: noteData.folder || 'Default',
+            folder: noteData.folder || 'General',
             created: noteData.created || noteData.lastModified || new Date().toISOString(),
           });
         }
@@ -253,18 +288,18 @@ ipcMain.handle('get-folders', async () => {
     const folders = await fs.readJson(foldersPath);
     
     if (!Array.isArray(folders)) {
-      return ['Default'];
+      return ['General'];
     }
     
-    // Ensure Default folder exists
-    if (!folders.includes('Default')) {
-      folders.unshift('Default');
+    // Ensure General folder exists
+    if (!folders.includes('General')) {
+      folders.unshift('General');
     }
     
     return folders;
   } catch (error) {
     console.error('Get folders error:', error);
-    return ['Default'];
+    return ['General'];
   }
 });
 
@@ -286,7 +321,11 @@ ipcMain.handle('add-folder', async (event, name) => {
     }
 
     const foldersPath = await getFoldersPath();
-    const folders = await fs.readJson(foldersPath);
+    let folders = await fs.readJson(foldersPath);
+
+    if (!Array.isArray(folders)) {
+      folders = ['General'];
+    }
 
     if (folders.includes(trimmedName)) {
       return { success: false, error: 'Folder already exists' };
@@ -298,6 +337,49 @@ ipcMain.handle('add-folder', async (event, name) => {
     return { success: true, folders };
   } catch (error) {
     console.error('Add folder error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-folder', async (event, name) => {
+  try {
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return { success: false, error: 'Invalid folder name' };
+    }
+
+    const trimmedName = name.trim();
+
+    // Can't delete General folder
+    if (trimmedName === 'General') {
+      return { success: false, error: 'Cannot delete General folder' };
+    }
+
+    const foldersPath = await getFoldersPath();
+    let folders = await fs.readJson(foldersPath);
+
+    if (!Array.isArray(folders)) {
+      return { success: false, error: 'No folders found' };
+    }
+
+    if (!folders.includes(trimmedName)) {
+      return { success: false, error: 'Folder not found' };
+    }
+
+    // Move all notes in this folder to General
+    const notes = await ipcMain.invoke(null, 'get-all-notes');
+    const notesToMove = notes.filter(note => note.folder === trimmedName);
+    
+    for (const note of notesToMove) {
+      await ipcMain.invoke(null, 'move-note', note.title, 'General');
+    }
+
+    // Remove folder from list
+    folders = folders.filter(folder => folder !== trimmedName);
+    await fs.writeJson(foldersPath, folders, { spaces: 2 });
+
+    return { success: true, folders };
+  } catch (error) {
+    console.error('Delete folder error:', error);
     return { success: false, error: error.message };
   }
 });

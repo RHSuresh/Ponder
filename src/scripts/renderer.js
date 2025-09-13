@@ -34,11 +34,12 @@ const themeToggle = document.getElementById('theme-toggle');
 // ====== State ======
 let currentNote = null;
 let allNotes = [];
-let currentFolder = 'Default';
-let folders = ['Default'];
+let currentFolder = 'General';
+let folders = ['General'];
 let calendar = null;
 let calendarBootstrapped = false;
 let autoSaveTimeout = null;
+let draggedNote = null;
 
 // Performance optimization: Debounced functions
 const debouncedSave = debounce(saveCurrentNote, 2000);
@@ -61,12 +62,18 @@ async function initApp() {
     setupEventListeners();
     setupFormattingControls();
     setupTabHandling();
+    setupDragAndDrop();
     
     // Load initial note
     if (allNotes.length === 0) {
       createNewNote();
     } else {
-      loadNote(allNotes[0]);
+      const generalNotes = allNotes.filter(n => (n.folder || 'General') === 'General');
+      if (generalNotes.length > 0) {
+        loadNote(generalNotes[0]);
+      } else {
+        loadNote(allNotes[0]);
+      }
     }
     
     hideLoadingState();
@@ -107,6 +114,30 @@ function showError(message) {
       errorDiv.parentNode.removeChild(errorDiv);
     }
   }, 5000);
+}
+
+function showSuccess(message) {
+  const successDiv = document.createElement('div');
+  successDiv.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--button-bg);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 6px;
+    z-index: 1000;
+    font-size: 14px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  `;
+  successDiv.textContent = message;
+  document.body.appendChild(successDiv);
+  
+  setTimeout(() => {
+    if (successDiv.parentNode) {
+      successDiv.parentNode.removeChild(successDiv);
+    }
+  }, 3000);
 }
 
 function setupEventListeners() {
@@ -176,7 +207,7 @@ function isEditorFocused() {
 
 // ====== Theme Management ======
 function initTheme() {
-  const savedTheme = sessionStorage.getItem('ponder-theme') || 'light';
+  const savedTheme = localStorage.getItem('ponder-theme') || 'light';
   const isDark = savedTheme === 'dark';
   
   document.documentElement.setAttribute('data-theme', savedTheme);
@@ -188,7 +219,7 @@ function toggleTheme() {
   const theme = isDark ? 'dark' : 'light';
   
   document.documentElement.setAttribute('data-theme', theme);
-  sessionStorage.setItem('ponder-theme', theme);
+  localStorage.setItem('ponder-theme', theme);
   
   // Update calendar colors if it's loaded
   if (calendar) {
@@ -214,7 +245,8 @@ function switchTab(tabName) {
     
     // Load calendar on first access
     if (tabName === 'calendar' && !calendarBootstrapped) {
-      mountCalendar();
+      // Small delay to ensure DOM is ready
+      setTimeout(() => mountCalendar(), 100);
     }
   }
 }
@@ -225,7 +257,7 @@ async function loadNotes() {
     const loaded = await window.notesAPI.getAllNotes();
     allNotes = loaded.map(note => ({
       ...note,
-      folder: note.folder || 'Default'
+      folder: note.folder || 'General'
     }));
     renderNotesList();
   } catch (error) {
@@ -236,7 +268,7 @@ async function loadNotes() {
 
 function renderNotesList() {
   const fragment = document.createDocumentFragment();
-  const filtered = allNotes.filter(note => (note.folder || 'Default') === currentFolder);
+  const filtered = allNotes.filter(note => (note.folder || 'General') === currentFolder);
   
   // Clear existing notes
   notesList.innerHTML = '';
@@ -253,12 +285,20 @@ function renderNotesList() {
   filtered.forEach(note => {
     const item = document.createElement('div');
     item.className = 'note-item';
+    item.draggable = true;
+    item.dataset.noteTitle = note.title;
+    
     if (currentNote && currentNote.title === note.title) {
       item.classList.add('active');
     }
     
     item.textContent = note.title;
     item.addEventListener('click', () => loadNote(note));
+    
+    // Drag and drop events
+    item.addEventListener('dragstart', handleNoteDragStart);
+    item.addEventListener('dragend', handleNoteDragEnd);
+    
     fragment.appendChild(item);
   });
   
@@ -293,10 +333,17 @@ function createNewNote() {
     title: 'Untitled Note',
     content: '',
     lastModified: new Date().toISOString(),
-    folder: currentFolder
+    folder: 'General' // Always create new notes in General
   };
   
   allNotes.unshift(newNote);
+  
+  // Switch to General folder if not already there
+  if (currentFolder !== 'General') {
+    currentFolder = 'General';
+    renderFolders();
+  }
+  
   renderNotesList();
   loadNote(newNote);
   
@@ -322,7 +369,8 @@ async function saveCurrentNote() {
     title,
     content,
     lastModified: new Date().toISOString(),
-    folder: currentFolder
+    folder: currentNote.folder || 'General',
+    created: currentNote.created
   };
   
   try {
@@ -418,13 +466,13 @@ async function loadFolders() {
         currentFolder = folders[0];
       }
     } else {
-      folders = ['Default'];
-      currentFolder = 'Default';
+      folders = ['General'];
+      currentFolder = 'General';
     }
   } catch (error) {
     console.error('Error loading folders:', error);
-    folders = ['Default'];
-    currentFolder = 'Default';
+    folders = ['General'];
+    currentFolder = 'General';
   }
 }
 
@@ -436,12 +484,19 @@ function renderFolders() {
   folders.forEach(folder => {
     const div = document.createElement('div');
     div.className = 'folder-item';
+    div.dataset.folderName = folder;
+    
     if (folder === currentFolder) {
       div.classList.add('active');
     }
     
     div.textContent = folder;
     div.addEventListener('click', () => switchFolder(folder));
+    
+    // Add drag and drop support for folders
+    div.addEventListener('dragover', handleFolderDragOver);
+    div.addEventListener('drop', handleFolderDrop);
+    
     fragment.appendChild(div);
   });
   
@@ -460,7 +515,7 @@ function switchFolder(folder) {
   renderNotesList();
   
   // Load first note in new folder
-  const filtered = allNotes.filter(n => (n.folder || 'Default') === currentFolder);
+  const filtered = allNotes.filter(n => (n.folder || 'General') === currentFolder);
   if (filtered.length > 0) {
     loadNote(filtered[0]);
   } else {
@@ -488,13 +543,82 @@ async function onCreateFolder() {
     }
     
     folders = result.folders || [...folders, trimmedName];
-    currentFolder = trimmedName;
     renderFolders();
-    renderNotesList();
+    showSuccess(`Folder "${trimmedName}" created successfully`);
     
   } catch (error) {
     console.error('Error creating folder:', error);
     showError('Failed to create folder: ' + error.message);
+  }
+}
+
+// ====== Drag and Drop ======
+function setupDragAndDrop() {
+  // Prevent default drag behaviors on document
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    document.addEventListener(eventName, preventDefaults, false);
+  });
+  
+  function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
+
+function handleNoteDragStart(e) {
+  draggedNote = e.target.dataset.noteTitle;
+  e.target.style.opacity = '0.5';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/html', e.target.outerHTML);
+}
+
+function handleNoteDragEnd(e) {
+  e.target.style.opacity = '';
+  draggedNote = null;
+}
+
+function handleFolderDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.target.classList.add('drag-over');
+}
+
+function handleFolderDrop(e) {
+  e.preventDefault();
+  e.target.classList.remove('drag-over');
+  
+  if (draggedNote) {
+    const targetFolder = e.target.dataset.folderName;
+    moveNoteToFolder(draggedNote, targetFolder);
+  }
+}
+
+async function moveNoteToFolder(noteTitle, targetFolder) {
+  try {
+    const result = await window.notesAPI.moveNote(noteTitle, targetFolder);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to move note');
+    }
+    
+    // Update local data
+    const noteIndex = allNotes.findIndex(n => n.title === noteTitle);
+    if (noteIndex !== -1) {
+      allNotes[noteIndex].folder = targetFolder;
+      allNotes[noteIndex].lastModified = new Date().toISOString();
+      
+      // Update current note if it's the one being moved
+      if (currentNote && currentNote.title === noteTitle) {
+        currentNote.folder = targetFolder;
+      }
+    }
+    
+    renderNotesList();
+    showSuccess(`Note moved to "${targetFolder}" folder`);
+    
+  } catch (error) {
+    console.error('Error moving note:', error);
+    showError('Failed to move note: ' + error.message);
   }
 }
 
@@ -620,7 +744,12 @@ function setupTabHandling() {
 
 // ====== Calendar Management ======
 async function mountCalendar() {
-  if (calendarBootstrapped) return;
+  if (calendarBootstrapped || !window.FullCalendar) {
+    if (!window.FullCalendar) {
+      showError('FullCalendar failed to load. Please refresh the page.');
+    }
+    return;
+  }
   
   try {
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -647,9 +776,8 @@ async function mountCalendar() {
       eventRemove: persistCalendar,
       
       // Styling
-      themeSystem: 'bootstrap',
       eventColor: getComputedStyle(document.documentElement)
-        .getPropertyValue('--primary-color').trim(),
+        .getPropertyValue('--primary-color').trim() || '#00403d',
     });
     
     // Load existing events
@@ -667,9 +795,11 @@ async function mountCalendar() {
     calendar.render();
     calendarBootstrapped = true;
     
+    console.log('Calendar initialized successfully');
+    
   } catch (error) {
     console.error('Failed to mount calendar:', error);
-    showError('Failed to initialize calendar');
+    showError('Failed to initialize calendar: ' + error.message);
   }
 }
 
@@ -789,30 +919,6 @@ async function onImportIcs() {
     console.error('Import error:', error);
     showError('Import failed: ' + error.message);
   }
-}
-
-function showSuccess(message) {
-  const successDiv = document.createElement('div');
-  successDiv.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: var(--button-bg);
-    color: white;
-    padding: 12px 16px;
-    border-radius: 6px;
-    z-index: 1000;
-    font-size: 14px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  `;
-  successDiv.textContent = message;
-  document.body.appendChild(successDiv);
-  
-  setTimeout(() => {
-    if (successDiv.parentNode) {
-      successDiv.parentNode.removeChild(successDiv);
-    }
-  }, 3000);
 }
 
 // ====== Utility Functions ======

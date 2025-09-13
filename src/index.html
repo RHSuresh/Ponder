@@ -6,12 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ponder - Note Taking App</title>
 
-    <!-- FullCalendar CDN -->
+    <!-- FullCalendar CDN - Updated for better compatibility -->
     <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/main.min.css"
       rel="stylesheet"
     />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/main.min.js"></script>
 
     <!-- App Styles -->
     <link rel="stylesheet" href="styles/style.css" />
@@ -40,7 +40,7 @@
         <!-- Folder Management -->
         <div class="directories">
           <button id="new-folder-btn">+ New Folder</button>
-          <div id="folder-list"></div>
+          <div id="folder-list" class="folder-list"></div>
         </div>
 
         <!-- Notes List -->
