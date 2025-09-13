@@ -485,20 +485,76 @@ function renderFolders() {
     const div = document.createElement('div');
     div.className = 'folder-item';
     div.dataset.folderName = folder;
-    
+
     if (folder === currentFolder) {
       div.classList.add('active');
     }
-    
-    div.textContent = folder;
-    div.addEventListener('click', () => switchFolder(folder));
-    
+
+    // Folder name span
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = folder;
+    nameSpan.style.flex = '1';
+    nameSpan.style.cursor = 'pointer';
+    nameSpan.addEventListener('click', () => switchFolder(folder));
+    div.appendChild(nameSpan);
+
+    // Rename button (not for General)
+    if (folder !== 'General') {
+      const renameBtn = document.createElement('button');
+      renameBtn.textContent = '✏️';
+      renameBtn.title = 'Rename folder';
+      renameBtn.style.marginLeft = '8px';
+      renameBtn.style.fontSize = '13px';
+      renameBtn.style.background = 'none';
+      renameBtn.style.border = 'none';
+      renameBtn.style.cursor = 'pointer';
+      renameBtn.style.color = 'var(--primary-color)';
+      renameBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onRenameFolder(folder);
+      });
+      div.appendChild(renameBtn);
+    }
+
     // Add drag and drop support for folders
     div.addEventListener('dragover', handleFolderDragOver);
     div.addEventListener('drop', handleFolderDrop);
-    
+
     fragment.appendChild(div);
   });
+// Rename folder handler
+async function onRenameFolder(oldName) {
+  const newName = prompt('Enter new folder name:', oldName);
+  if (!newName || !newName.trim() || newName.trim() === oldName) return;
+
+  const trimmedNew = newName.trim();
+  // Case-insensitive, trimmed check for existing folders
+  const exists = folders.some(f => f.trim().toLowerCase() === trimmedNew.toLowerCase());
+  if (exists) {
+    showError('Folder already exists');
+    return;
+  }
+
+  try {
+    const result = await window.foldersAPI.renameFolder(oldName, trimmedNew);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to rename folder');
+    }
+    folders = result.folders || folders.map(f => (f === oldName ? trimmedNew : f));
+    // Update notes in this folder
+    allNotes.forEach(n => {
+      if ((n.folder || 'General') === oldName) n.folder = trimmedNew;
+    });
+    // If current folder was renamed, update
+    if (currentFolder === oldName) currentFolder = trimmedNew;
+    renderFolders();
+    renderNotesList();
+    showSuccess(`Folder renamed to "${trimmedNew}"`);
+  } catch (error) {
+    console.error('Error renaming folder:', error);
+    showError('Failed to rename folder: ' + error.message);
+  }
+}
   
   folderListEl.appendChild(fragment);
 }
@@ -529,23 +585,25 @@ function switchFolder(folder) {
 async function onCreateFolder() {
   const name = prompt('Enter folder name:');
   if (!name || !name.trim()) return;
-  
+
   const trimmedName = name.trim();
-  if (folders.includes(trimmedName)) {
+  // Case-insensitive, trimmed check for existing folders
+  const exists = folders.some(f => f.trim().toLowerCase() === trimmedName.toLowerCase());
+  if (exists) {
     showError('Folder already exists');
     return;
   }
-  
+
   try {
     const result = await window.foldersAPI.addFolder(trimmedName);
     if (!result.success) {
       throw new Error(result.error || 'Failed to create folder');
     }
-    
+
     folders = result.folders || [...folders, trimmedName];
     renderFolders();
     showSuccess(`Folder "${trimmedName}" created successfully`);
-    
+
   } catch (error) {
     console.error('Error creating folder:', error);
     showError('Failed to create folder: ' + error.message);

@@ -1,6 +1,67 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+
+// Ensure all Electron and Node requires are at the very top
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = electron;
 const path = require('path');
 const fs = require('fs-extra');
+
+// ====== Rename Folder IPC Handler ======
+ipcMain.handle('rename-folder', async (event, oldName, newName) => {
+  try {
+    if (!oldName || typeof oldName !== 'string' || !oldName.trim()) {
+      return { success: false, error: 'Invalid old folder name' };
+    }
+    if (!newName || typeof newName !== 'string' || !newName.trim()) {
+      return { success: false, error: 'Invalid new folder name' };
+    }
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (trimmedOld === 'General') {
+      return { success: false, error: 'Cannot rename General folder' };
+    }
+    if (trimmedOld === trimmedNew) {
+      return { success: false, error: 'New folder name is the same as old' };
+    }
+    if (trimmedNew.length > 50) {
+      return { success: false, error: 'Folder name too long (max 50 characters)' };
+    }
+    if (/[<>:"/\\|?*\x00-\x1f]/.test(trimmedNew)) {
+      return { success: false, error: 'Folder name contains invalid characters' };
+    }
+    const foldersPath = await getFoldersPath();
+    let folders = await fs.readJson(foldersPath);
+    if (!Array.isArray(folders)) folders = ['General'];
+    // Case-insensitive check for existing folder
+    if (folders.some(f => f.trim().toLowerCase() === trimmedNew.toLowerCase())) {
+      return { success: false, error: 'Folder already exists' };
+    }
+    // Update folder name in folders list
+    const idx = folders.indexOf(trimmedOld);
+    if (idx === -1) {
+      return { success: false, error: 'Folder not found' };
+    }
+    folders[idx] = trimmedNew;
+    await fs.writeJson(foldersPath, folders, { spaces: 2 });
+    // Update all notes in this folder
+    const notesDir = await getNotesDir();
+    const files = await fs.readdir(notesDir);
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      const filePath = path.join(notesDir, file);
+      try {
+        const noteData = await fs.readJson(filePath);
+        if ((noteData.folder || 'General') === trimmedOld) {
+          noteData.folder = trimmedNew;
+          await fs.writeJson(filePath, noteData, { spaces: 2 });
+        }
+      } catch (e) { /* skip corrupted notes */ }
+    }
+    return { success: true, folders };
+  } catch (error) {
+    console.error('Rename folder error:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 let mainWindow;
 

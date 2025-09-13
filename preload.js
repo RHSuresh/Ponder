@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('foldersAPI', {
   getFolders: () => ipcRenderer.invoke('get-folders'),
   addFolder: (name) => ipcRenderer.invoke('add-folder', name),
   deleteFolder: (name) => ipcRenderer.invoke('delete-folder', name),
+  renameFolder: (oldName, newName) => ipcRenderer.invoke('rename-folder', oldName, newName),
 });
 
 // Calendar API
