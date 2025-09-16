@@ -207,7 +207,8 @@ function isEditorFocused() {
 
 // ====== Theme Management ======
 function initTheme() {
-  const savedTheme = localStorage.getItem('ponder-theme') || 'light';
+  // Don't use localStorage in artifacts - use session storage alternative
+  const savedTheme = sessionStorage.getItem('ponder-theme') || 'light';
   const isDark = savedTheme === 'dark';
   
   document.documentElement.setAttribute('data-theme', savedTheme);
@@ -219,7 +220,7 @@ function toggleTheme() {
   const theme = isDark ? 'dark' : 'light';
   
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('ponder-theme', theme);
+  sessionStorage.setItem('ponder-theme', theme);
   
   // Update calendar colors if it's loaded
   if (calendar) {
@@ -333,17 +334,10 @@ function createNewNote() {
     title: 'Untitled Note',
     content: '',
     lastModified: new Date().toISOString(),
-    folder: 'General' // Always create new notes in General
+    folder: currentFolder || 'General'
   };
   
   allNotes.unshift(newNote);
-  
-  // Switch to General folder if not already there
-  if (currentFolder !== 'General') {
-    currentFolder = 'General';
-    renderFolders();
-  }
-  
   renderNotesList();
   loadNote(newNote);
   
@@ -485,6 +479,7 @@ function renderFolders() {
     const div = document.createElement('div');
     div.className = 'folder-item';
     div.dataset.folderName = folder;
+    div.style.cssText = 'display: flex; align-items: center; justify-content: space-between;';
 
     if (folder === currentFolder) {
       div.classList.add('active');
@@ -498,22 +493,50 @@ function renderFolders() {
     nameSpan.addEventListener('click', () => switchFolder(folder));
     div.appendChild(nameSpan);
 
-    // Rename button (not for General)
+    // Button container for non-General folders
     if (folder !== 'General') {
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.cssText = 'display: flex; gap: 4px;';
+      
+      // Rename button
       const renameBtn = document.createElement('button');
       renameBtn.textContent = '✏️';
       renameBtn.title = 'Rename folder';
-      renameBtn.style.marginLeft = '8px';
-      renameBtn.style.fontSize = '13px';
-      renameBtn.style.background = 'none';
-      renameBtn.style.border = 'none';
-      renameBtn.style.cursor = 'pointer';
-      renameBtn.style.color = 'var(--primary-color)';
+      renameBtn.style.cssText = `
+        padding: 2px 4px;
+        font-size: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--primary-color);
+        border-radius: 2px;
+      `;
       renameBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         onRenameFolder(folder);
       });
-      div.appendChild(renameBtn);
+      buttonContainer.appendChild(renameBtn);
+      
+      // Delete button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '🗑️';
+      deleteBtn.title = 'Delete folder';
+      deleteBtn.style.cssText = `
+        padding: 2px 4px;
+        font-size: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #e74c3c;
+        border-radius: 2px;
+      `;
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onDeleteFolder(folder);
+      });
+      buttonContainer.appendChild(deleteBtn);
+      
+      div.appendChild(buttonContainer);
     }
 
     // Add drag and drop support for folders
@@ -522,39 +545,6 @@ function renderFolders() {
 
     fragment.appendChild(div);
   });
-// Rename folder handler
-async function onRenameFolder(oldName) {
-  const newName = prompt('Enter new folder name:', oldName);
-  if (!newName || !newName.trim() || newName.trim() === oldName) return;
-
-  const trimmedNew = newName.trim();
-  // Case-insensitive, trimmed check for existing folders
-  const exists = folders.some(f => f.trim().toLowerCase() === trimmedNew.toLowerCase());
-  if (exists) {
-    showError('Folder already exists');
-    return;
-  }
-
-  try {
-    const result = await window.foldersAPI.renameFolder(oldName, trimmedNew);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to rename folder');
-    }
-    folders = result.folders || folders.map(f => (f === oldName ? trimmedNew : f));
-    // Update notes in this folder
-    allNotes.forEach(n => {
-      if ((n.folder || 'General') === oldName) n.folder = trimmedNew;
-    });
-    // If current folder was renamed, update
-    if (currentFolder === oldName) currentFolder = trimmedNew;
-    renderFolders();
-    renderNotesList();
-    showSuccess(`Folder renamed to "${trimmedNew}"`);
-  } catch (error) {
-    console.error('Error renaming folder:', error);
-    showError('Failed to rename folder: ' + error.message);
-  }
-}
   
   folderListEl.appendChild(fragment);
 }
@@ -587,7 +577,8 @@ async function onCreateFolder() {
   if (!name || !name.trim()) return;
 
   const trimmedName = name.trim();
-  // Case-insensitive, trimmed check for existing folders
+  
+  // Check if folder already exists (case-insensitive)
   const exists = folders.some(f => f.trim().toLowerCase() === trimmedName.toLowerCase());
   if (exists) {
     showError('Folder already exists');
@@ -600,6 +591,7 @@ async function onCreateFolder() {
       throw new Error(result.error || 'Failed to create folder');
     }
 
+    // Update local folders array
     folders = result.folders || [...folders, trimmedName];
     renderFolders();
     showSuccess(`Folder "${trimmedName}" created successfully`);
@@ -607,6 +599,86 @@ async function onCreateFolder() {
   } catch (error) {
     console.error('Error creating folder:', error);
     showError('Failed to create folder: ' + error.message);
+  }
+}
+
+async function onRenameFolder(oldName) {
+  const newName = prompt('Enter new folder name:', oldName);
+  if (!newName || !newName.trim() || newName.trim() === oldName) return;
+
+  const trimmedNew = newName.trim();
+  
+  // Check if new name already exists (case-insensitive)
+  const exists = folders.some(f => f.trim().toLowerCase() === trimmedNew.toLowerCase());
+  if (exists) {
+    showError('Folder already exists');
+    return;
+  }
+
+  try {
+    const result = await window.foldersAPI.renameFolder(oldName, trimmedNew);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to rename folder');
+    }
+    
+    // Update local data
+    folders = result.folders || folders.map(f => (f === oldName ? trimmedNew : f));
+    
+    // Update notes in this folder
+    allNotes.forEach(n => {
+      if ((n.folder || 'General') === oldName) {
+        n.folder = trimmedNew;
+      }
+    });
+    
+    // Update current folder if it was renamed
+    if (currentFolder === oldName) {
+      currentFolder = trimmedNew;
+    }
+    
+    renderFolders();
+    renderNotesList();
+    showSuccess(`Folder renamed to "${trimmedNew}"`);
+    
+  } catch (error) {
+    console.error('Error renaming folder:', error);
+    showError('Failed to rename folder: ' + error.message);
+  }
+}
+
+async function onDeleteFolder(folder) {
+  if (!confirm(`Delete folder "${folder}"? All notes in this folder will be moved to General.`)) {
+    return;
+  }
+
+  try {
+    const result = await window.foldersAPI.deleteFolder(folder);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to delete folder');
+    }
+
+    // Update local data
+    folders = result.folders || folders.filter(f => f !== folder);
+    
+    // Move notes in this folder to General
+    allNotes.forEach(n => {
+      if ((n.folder || 'General') === folder) {
+        n.folder = 'General';
+      }
+    });
+    
+    // Switch to General if current folder was deleted
+    if (currentFolder === folder) {
+      currentFolder = 'General';
+    }
+    
+    renderFolders();
+    renderNotesList();
+    showSuccess(`Folder "${folder}" deleted. Notes moved to General.`);
+
+  } catch (error) {
+    console.error('Error deleting folder:', error);
+    showError('Failed to delete folder: ' + error.message);
   }
 }
 
@@ -638,16 +710,18 @@ function handleNoteDragEnd(e) {
 function handleFolderDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
-  e.target.classList.add('drag-over');
+  e.currentTarget.classList.add('drag-over');
 }
 
 function handleFolderDrop(e) {
   e.preventDefault();
-  e.target.classList.remove('drag-over');
+  e.currentTarget.classList.remove('drag-over');
   
   if (draggedNote) {
-    const targetFolder = e.target.dataset.folderName;
-    moveNoteToFolder(draggedNote, targetFolder);
+    const targetFolder = e.currentTarget.dataset.folderName;
+    if (targetFolder) {
+      moveNoteToFolder(draggedNote, targetFolder);
+    }
   }
 }
 
@@ -802,15 +876,21 @@ function setupTabHandling() {
 
 // ====== Calendar Management ======
 async function mountCalendar() {
-  if (calendarBootstrapped || !window.FullCalendar) {
-    if (!window.FullCalendar) {
-      showError('FullCalendar failed to load. Please refresh the page.');
-    }
+  if (calendarBootstrapped) {
+    return;
+  }
+  
+  // Check if FullCalendar is loaded
+  if (!window.FullCalendar) {
+    console.error('FullCalendar not loaded');
+    showError('Calendar library failed to load. Please refresh the page.');
     return;
   }
   
   try {
-    calendar = new FullCalendar.Calendar(calendarEl, {
+    const { Calendar } = window.FullCalendar;
+    
+    calendar = new Calendar(calendarEl, {
       initialView: 'dayGridMonth',
       headerToolbar: {
         left: 'prev,next today',
@@ -839,15 +919,19 @@ async function mountCalendar() {
     });
     
     // Load existing events
-    const existingEvents = await window.calendarAPI.getEvents();
-    if (Array.isArray(existingEvents)) {
-      existingEvents.forEach(event => {
-        try {
-          calendar.addEvent(event);
-        } catch (error) {
-          console.warn('Failed to add event:', event, error);
-        }
-      });
+    try {
+      const existingEvents = await window.calendarAPI.getEvents();
+      if (Array.isArray(existingEvents)) {
+        existingEvents.forEach(event => {
+          try {
+            calendar.addEvent(event);
+          } catch (error) {
+            console.warn('Failed to add event:', event, error);
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load existing events:', error);
     }
     
     calendar.render();

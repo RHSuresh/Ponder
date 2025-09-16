@@ -11,7 +11,6 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/main.min.css"
       rel="stylesheet"
     />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/main.min.js"></script>
 
     <!-- App Styles -->
     <link rel="stylesheet" href="styles/style.css" />
@@ -196,7 +195,12 @@
       </div>
     </div>
 
-    <!-- App Scripts -->
+    <!-- Load FullCalendar first, then app scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/main.min.js"></script>
+    <script>
+      // Verify FullCalendar loaded
+      console.log("FullCalendar available:", !!window.FullCalendar);
+    </script>
     <script src="scripts/renderer.js"></script>
   </body>
 </html>
