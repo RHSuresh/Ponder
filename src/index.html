@@ -48,6 +48,71 @@
         </div>
       </div>
 
+      <!-- Modal for folder name input -->
+      <div
+        id="folder-modal"
+        style="
+          display: none;
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(0, 0, 0, 0.25);
+          z-index: 3000;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <div
+          style="
+            background: #fff;
+            padding: 32px 24px;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+            min-width: 320px;
+            max-width: 90vw;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: stretch;
+          "
+        >
+          <h3 style="margin: 0; font-size: 20px">Create New Folder</h3>
+          <input
+            id="folder-modal-input"
+            type="text"
+            placeholder="Folder name"
+            style="
+              font-size: 16px;
+              padding: 8px 10px;
+              border-radius: 6px;
+              border: 1px solid #ccc;
+              outline: none;
+            "
+          />
+          <div style="display: flex; gap: 12px; justify-content: flex-end">
+            <button
+              id="folder-modal-cancel"
+              style="padding: 8px 18px; border-radius: 6px; background: #eee"
+            >
+              Cancel
+            </button>
+            <button
+              id="folder-modal-ok"
+              style="
+                padding: 8px 18px;
+                border-radius: 6px;
+                background: var(--button-bg);
+                color: #fff;
+              "
+            >
+              Create
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Main Editor Area -->
       <div class="editor">
         <!-- Tab Bar -->
@@ -195,8 +260,8 @@
       </div>
     </div>
 
-    <!-- Load FullCalendar first, then app scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/main.min.js"></script>
+    <!-- Load FullCalendar (global build) first, then app scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/index.global.min.js"></script>
     <script>
       // Verify FullCalendar loaded
       console.log("FullCalendar available:", !!window.FullCalendar);

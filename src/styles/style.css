@@ -1,12 +1,15 @@
+/* Ponder App - Modern Glassmorphism Theme */
+
+/* CSS Custom Properties */
 :root {
   /* Light theme colors - clean, professional */
   --primary-color: #00403d;
   --primary-light: #006660;
   --primary-dark: #002b29;
-  --bg-primary: #ffffff;
+  --bg-primary: rgba(255,255,255,0.85);
   --bg-secondary: #fafafa;
-  --bg-sidebar: #f5f7f6;
-  --bg-header: #ffffff;
+  --bg-sidebar: rgba(245,247,246,0.65);
+  --bg-header: rgba(255,255,255,0.55);
   --bg-toolbar: #f8f9f9;
   --text-primary: #2c3e50;
   --text-secondary: #5a6c7d;
@@ -33,10 +36,10 @@
   --primary-color: #00a693;
   --primary-light: #00c4a7;
   --primary-dark: #007d6c;
-  --bg-primary: #1a1a1a;
+  --bg-primary: rgba(26,26,26,0.85);
   --bg-secondary: #2d2d2d;
-  --bg-sidebar: #252525;
-  --bg-header: #2a2a2a;
+  --bg-sidebar: rgba(37,37,37,0.55);
+  --bg-header: rgba(42,42,42,0.45);
   --bg-toolbar: #2f2f2f;
   --text-primary: #e0e0e0;
   --text-secondary: #b0b0b0;
@@ -57,17 +60,19 @@
   --drag-over-border: #00c4a7;
 }
 
+/* Reset and base styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  will-change: auto;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   height: 100vh;
   overflow: hidden;
-  background-color: var(--bg-primary);
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
   color: var(--text-primary);
   transition: background-color var(--transition-speed), color var(--transition-speed);
 }
@@ -77,7 +82,45 @@ body {
   height: 100vh;
 }
 
-/* Simplified Theme Toggle */
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: var(--bg-sidebar);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 8px 32px rgba(0, 64, 61, 0.08);
+  border-right: 1px solid var(--border-color);
+  border-radius: 24px;
+  margin: 18px 0 18px 18px;
+  display: flex;
+  flex-direction: column;
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+  transform: translateZ(0);
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-header);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: 0 2px 12px rgba(0, 166, 147, 0.06);
+  border-radius: 24px 24px 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  transition: border-color var(--transition-speed);
+}
+
+.logo {
+  height: 32px;
+  width: auto;
+}
+
+/* Theme Toggle Switch */
 .switch {
   position: relative;
   display: inline-block;
@@ -123,45 +166,11 @@ input:checked + .slider:before {
   transform: translateX(26px);
 }
 
-/* Remove all complex theme toggle animations */
-.sun-moon, .moon-dot, .light-ray, .cloud-light, .cloud-dark, .stars, .star {
-  display: none;
-}
-
-/* Sidebar */
-.sidebar {
-  width: 280px;
-  background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  transition: background-color var(--transition-speed), border-color var(--transition-speed);
-}
-
-.sidebar-header {
-  padding: 20px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--bg-header);
-  transition: border-color var(--transition-speed);
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-}
-
-.logo {
-  height: 32px;
-  width: auto;
-}
-
+/* Directories */
 .directories {
   border-bottom: 1px solid var(--border-color);
   padding: 16px;
-  background-color: var(--bg-sidebar);
+  background: var(--bg-sidebar);
 }
 
 #new-folder-btn {
@@ -175,61 +184,89 @@ input:checked + .slider:before {
 .folder-list {
   max-height: 200px;
   overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .folder-item {
-  font-weight: 500;
-  padding: 10px 12px;
-  cursor: pointer;
-  border-radius: 6px;
+  background: rgba(255,255,255,0.45);
+  border-radius: 18px;
+  border: 1.5px solid rgba(0, 166, 147, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 166, 147, 0.12);
+  padding: 10px 16px;
   color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
   transition: all var(--transition-speed);
   margin-bottom: 2px;
-  border: 2px solid transparent;
+  transform: translateZ(0);
 }
 
-.folder-item:hover {
-  background-color: var(--folder-hover);
-}
-
+.folder-item:hover,
 .folder-item.active {
-  background-color: var(--active-bg);
+  background: rgba(0,166,147,0.18);
+  box-shadow: 0 8px 32px rgba(0, 166, 147, 0.22);
   color: var(--primary-color);
-  font-weight: 600;
 }
 
 .folder-item.drag-over {
   background-color: var(--drag-over-bg);
   border-color: var(--drag-over-border);
   box-shadow: 0 0 8px rgba(0, 166, 147, 0.3);
-  transform: scale(1.02);
+  animation: drag-pulse 0.5s ease-in-out;
 }
 
+[data-theme="dark"] .folder-item {
+  background: rgba(37,37,37,0.45);
+  border: 1.5px solid rgba(0, 166, 147, 0.18);
+}
+
+[data-theme="dark"] .folder-item:hover,
+[data-theme="dark"] .folder-item.active {
+  background: rgba(37,37,37,0.25);
+  box-shadow: 0 8px 32px rgba(0, 166, 147, 0.22);
+}
+
+[data-theme="dark"] .folder-item.drag-over {
+  background: rgba(37,37,37,0.15);
+}
+
+/* Notes List */
 .notes-list {
   flex: 1;
   overflow-y: auto;
   padding: 8px 16px;
+  background: rgba(255,255,255,0.35);
+  border-radius: 0 0 24px 0;
+  box-shadow: 0 8px 32px rgba(0, 166, 147, 0.18);
+  backdrop-filter: blur(12px);
+  margin: 24px 0;
 }
 
 .note-item {
-  padding: 12px;
-  border-radius: 6px;
-  cursor: pointer;
+  background: rgba(255,255,255,0.55);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 166, 147, 0.10);
+  padding: 12px 18px;
+  margin-bottom: 12px;
   color: var(--text-primary);
-  transition: all var(--transition-speed);
-  margin-bottom: 4px;
   font-size: 14px;
   line-height: 1.4;
   word-wrap: break-word;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: 1px solid transparent;
+  cursor: pointer;
   position: relative;
+  transition: all var(--transition-speed);
+  transform: translateZ(0);
 }
 
 .note-item:hover {
-  background-color: var(--hover-bg);
+  background: rgba(0,166,147,0.12);
+  box-shadow: 0 4px 16px rgba(0, 166, 147, 0.18);
   transform: translateX(2px);
 }
 
@@ -237,7 +274,6 @@ input:checked + .slider:before {
   background-color: var(--active-bg);
   color: var(--primary-color);
   font-weight: 500;
-  border-color: var(--primary-color);
 }
 
 .note-item[draggable="true"] {
@@ -270,14 +306,22 @@ input:checked + .slider:before {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-secondary);
+  background: var(--bg-primary);
+  border-radius: 18px 18px 0 0;
+  margin: 18px 18px 18px 0;
+  box-shadow: 0 8px 32px rgba(0, 64, 61, 0.10);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  overflow: hidden;
   transition: background-color var(--transition-speed);
+  transform: translateZ(0);
 }
 
 .tab-bar {
   display: flex;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-header);
+  border-radius: 18px 18px 0 0;
   transition: background-color var(--transition-speed), border-color var(--transition-speed);
 }
 
@@ -307,7 +351,7 @@ input:checked + .slider:before {
   display: none;
 }
 
-/* Notes tab */
+/* Notes Tab */
 .editor-header {
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
@@ -472,6 +516,7 @@ button {
   font-size: 14px;
   transition: all var(--transition-speed);
   box-shadow: var(--shadow-light);
+  transform: translateZ(0);
 }
 
 button:hover {
@@ -595,6 +640,22 @@ button:disabled {
   color: var(--text-primary);
 }
 
+/* Modal Glassmorphism */
+#folder-modal > div {
+  background: rgba(255,255,255,0.55) !important;
+  box-shadow: 0 8px 32px rgba(0, 64, 61, 0.18) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1.5px solid rgba(0, 166, 147, 0.12) !important;
+  border-radius: 24px !important;
+}
+
+[data-theme="dark"] #folder-modal > div {
+  background: rgba(37,37,37,0.65) !important;
+  box-shadow: 0 8px 32px rgba(0, 166, 147, 0.22) !important;
+  border: 1.5px solid rgba(0, 166, 147, 0.18) !important;
+}
+
 /* Empty state styling */
 .empty-state {
   display: flex;
@@ -608,15 +669,11 @@ button:disabled {
   margin: 16px 0;
 }
 
-/* Drag and drop visual feedback */
+/* Animations */
 @keyframes drag-pulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.05); }
   100% { transform: scale(1); }
-}
-
-.folder-item.drag-over {
-  animation: drag-pulse 0.5s ease-in-out;
 }
 
 /* Loading states */
@@ -644,17 +701,18 @@ button:disabled {
   background: var(--primary-color);
 }
 
-/* Performance optimizations */
-* {
-  will-change: auto;
+/* Utility classes */
+.hidden {
+  display: none !important;
 }
 
-.sidebar,
-.editor,
-.note-item,
-.folder-item,
-button {
-  transform: translateZ(0);
+.flex {
+  display: flex;
+}
+
+.center {
+  justify-content: center;
+  align-items: center;
 }
 
 /* Responsive design */

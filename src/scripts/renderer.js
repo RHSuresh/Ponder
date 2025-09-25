@@ -6,6 +6,25 @@ const noteTitle = document.getElementById('note-title');
 const noteContent = document.getElementById('note-content');
 const deleteNoteBtn = document.getElementById('delete-note-btn');
 
+// Folder modal elements
+const folderModal = document.getElementById('folder-modal');
+const folderModalInput = document.getElementById('folder-modal-input');
+const folderModalOk = document.getElementById('folder-modal-ok');
+const folderModalCancel = document.getElementById('folder-modal-cancel');
+
+// DEBUG: Check if foldersAPI is available
+if (!window.foldersAPI) {
+  console.error('window.foldersAPI is undefined! The preload script may not be loaded or contextBridge is not working.');
+  document.addEventListener('DOMContentLoaded', () => {
+    const err = document.createElement('div');
+    err.style.cssText = 'position:fixed;top:60px;right:20px;background:#e74c3c;color:white;padding:16px 20px;border-radius:8px;z-index:2000;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,0.25)';
+    err.textContent = 'Critical Error: window.foldersAPI is not available. Check preload.js and Electron config.';
+    document.body.appendChild(err);
+  });
+} else {
+  console.log('window.foldersAPI is available:', window.foldersAPI);
+}
+
 const fontFamilySelect = document.getElementById('font-family');
 const fontSizeSelect = document.getElementById('font-size');
 const boldBtn = document.getElementById('bold-btn');
@@ -141,6 +160,10 @@ function showSuccess(message) {
 }
 
 function setupEventListeners() {
+  console.log('Setting up event listeners...');
+  console.log('newFolderBtn:', newFolderBtn);
+  console.log('window.foldersAPI:', window.foldersAPI);
+  
   // Main buttons
   newNoteBtn.addEventListener('click', createNewNote);
   saveNoteBtn.addEventListener('click', saveCurrentNote);
@@ -573,36 +596,67 @@ function switchFolder(folder) {
 }
 
 async function onCreateFolder() {
-  const name = prompt('Enter folder name:');
-  if (!name || !name.trim()) return;
+  // Show modal dialog for folder name
+  folderModalInput.value = '';
+  folderModal.style.display = 'flex';
+  folderModalInput.focus();
 
-  const trimmedName = name.trim();
-  
-  // Check if folder already exists (case-insensitive)
-  const exists = folders.some(f => f.trim().toLowerCase() === trimmedName.toLowerCase());
-  if (exists) {
-    showError('Folder already exists');
-    return;
+  function closeModal() {
+    folderModal.style.display = 'none';
+    folderModalInput.value = '';
+    folderModalOk.onclick = null;
+    folderModalCancel.onclick = null;
+    folderModalInput.onkeydown = null;
   }
 
-  try {
-    const result = await window.foldersAPI.addFolder(trimmedName);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to create folder');
+  folderModalCancel.onclick = (e) => {
+    e.preventDefault();
+    closeModal();
+  };
+
+  folderModalOk.onclick = async (e) => {
+    e.preventDefault();
+    const name = folderModalInput.value;
+    if (!name || !name.trim()) {
+      showError('Folder name cannot be empty');
+      return;
     }
+    const trimmedName = name.trim();
+    // Check if folder already exists (case-insensitive)
+    const exists = folders.some(f => f.trim().toLowerCase() === trimmedName.toLowerCase());
+    if (exists) {
+      showError('Folder already exists');
+      return;
+    }
+    try {
+      showLoadingState();
+      const result = await window.foldersAPI.addFolder(trimmedName);
+      if (!result || !result.success) {
+        showError('Failed to create folder: ' + (result && result.error ? result.error : 'Unknown error'));
+        return;
+      }
+      folders = result.folders || [...folders, trimmedName];
+      currentFolder = trimmedName;
+      renderFolders();
+      renderNotesList();
+      showSuccess(`Folder "${trimmedName}" created successfully`);
+      closeModal();
+    } catch (error) {
+      showError('Failed to create folder: ' + error.message);
+    } finally {
+      hideLoadingState();
+    }
+  };
 
-    // Update local folders array
-    folders = result.folders || [...folders, trimmedName];
-    renderFolders();
-    showSuccess(`Folder "${trimmedName}" created successfully`);
-
-  } catch (error) {
-    console.error('Error creating folder:', error);
-    showError('Failed to create folder: ' + error.message);
-  }
+  // Allow Enter/Escape keys
+  folderModalInput.onkeydown = (e) => {
+    if (e.key === 'Enter') folderModalOk.onclick(e);
+    if (e.key === 'Escape') folderModalCancel.onclick(e);
+  };
 }
 
 async function onRenameFolder(oldName) {
+  console.log('Rename folder clicked for:', oldName);
   const newName = prompt('Enter new folder name:', oldName);
   if (!newName || !newName.trim() || newName.trim() === oldName) return;
 
@@ -616,7 +670,10 @@ async function onRenameFolder(oldName) {
   }
 
   try {
+    console.log('Calling foldersAPI.renameFolder with:', oldName, trimmedNew);
     const result = await window.foldersAPI.renameFolder(oldName, trimmedNew);
+    console.log('Rename API result:', result);
+    
     if (!result.success) {
       throw new Error(result.error || 'Failed to rename folder');
     }
@@ -874,6 +931,250 @@ function setupTabHandling() {
   });
 }
 
+// ====== Event Dialog Management ======
+function showEventDialog(eventData = {}, existingEvent = null) {
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+  
+  // Create dialog
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: var(--bg-color, #ffffff);
+    border-radius: 8px;
+    padding: 24px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  `;
+  
+  // Parse dates
+  const startDate = eventData.start ? new Date(eventData.start) : new Date();
+  const endDate = eventData.end ? new Date(eventData.end) : new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hour
+  
+  // Format date for input
+  const formatDate = (date) => {
+    return date.toISOString().split('T')[0];
+  };
+  
+  // Format time for input
+  const formatTime = (date) => {
+    return date.toTimeString().split(' ')[0].substring(0, 5);
+  };
+  
+  dialog.innerHTML = `
+    <h3 style="margin: 0 0 20px 0; color: var(--text-color, #333);">${existingEvent ? 'Edit Event' : 'Create Event'}</h3>
+    
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 4px; font-weight: 500;">Event Title *</label>
+      <input type="text" id="event-title" placeholder="Enter event title" 
+             style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+             value="${eventData.title || ''}">
+    </div>
+    
+    <div style="margin-bottom: 16px;">
+      <label style="display: flex; align-items: center; margin-bottom: 8px;">
+        <input type="checkbox" id="event-all-day" ${eventData.allDay ? 'checked' : ''} 
+               style="margin-right: 8px;">
+        All Day Event
+      </label>
+    </div>
+    
+    <div id="date-time-fields" style="margin-bottom: 16px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">Start Date</label>
+          <input type="date" id="event-start-date" value="${formatDate(startDate)}"
+                 style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">End Date</label>
+          <input type="date" id="event-end-date" value="${formatDate(endDate)}"
+                 style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">Start Time</label>
+          <input type="time" id="event-start-time" value="${formatTime(startDate)}"
+                 style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">End Time</label>
+          <input type="time" id="event-end-time" value="${formatTime(endDate)}"
+                 style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 4px; font-weight: 500;">Description</label>
+      <textarea id="event-description" placeholder="Add description (optional)"
+                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; height: 60px; resize: vertical;"></textarea>
+    </div>
+    
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 4px; font-weight: 500;">Repeat</label>
+      <select id="event-repeat" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="none">No Repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
+        <option value="custom">Custom...</option>
+      </select>
+    </div>
+    
+    <div id="custom-repeat" style="display: none; margin-bottom: 16px;">
+      <label style="display: block; margin-bottom: 4px; font-weight: 500;">Custom Repeat</label>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <input type="number" id="repeat-interval" placeholder="Every" min="1" value="1"
+               style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <select id="repeat-frequency" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+          <option value="days">Day(s)</option>
+          <option value="weeks">Week(s)</option>
+          <option value="months">Month(s)</option>
+          <option value="years">Year(s)</option>
+        </select>
+      </div>
+    </div>
+    
+    <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+      <button id="event-cancel" style="padding: 10px 20px; border: 1px solid #ddd; background: #f5f5f5; border-radius: 4px; cursor: pointer;">
+        Cancel
+      </button>
+      <button id="event-save" style="padding: 10px 20px; background: var(--primary-color, #007bff); color: white; border: none; border-radius: 4px; cursor: pointer;">
+        ${existingEvent ? 'Update Event' : 'Save Event'}
+      </button>
+    </div>
+  `;
+  
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  
+  // Get references to form elements
+  const titleInput = dialog.querySelector('#event-title');
+  const allDayCheckbox = dialog.querySelector('#event-all-day');
+  const startDateInput = dialog.querySelector('#event-start-date');
+  const endDateInput = dialog.querySelector('#event-end-date');
+  const startTimeInput = dialog.querySelector('#event-start-time');
+  const endTimeInput = dialog.querySelector('#event-end-time');
+  const descriptionInput = dialog.querySelector('#event-description');
+  const repeatSelect = dialog.querySelector('#event-repeat');
+  const customRepeatDiv = dialog.querySelector('#custom-repeat');
+  const repeatInterval = dialog.querySelector('#repeat-interval');
+  const repeatFrequency = dialog.querySelector('#repeat-frequency');
+  const cancelBtn = dialog.querySelector('#event-cancel');
+  const saveBtn = dialog.querySelector('#event-save');
+  
+  // Handle all-day toggle
+  allDayCheckbox.addEventListener('change', () => {
+    const dateTimeFields = dialog.querySelector('#date-time-fields');
+    if (allDayCheckbox.checked) {
+      startTimeInput.style.display = 'none';
+      endTimeInput.style.display = 'none';
+      startTimeInput.previousElementSibling.style.display = 'none';
+      endTimeInput.previousElementSibling.style.display = 'none';
+    } else {
+      startTimeInput.style.display = 'block';
+      endTimeInput.style.display = 'block';
+      startTimeInput.previousElementSibling.style.display = 'block';
+      endTimeInput.previousElementSibling.style.display = 'block';
+    }
+  });
+  
+  // Handle repeat toggle
+  repeatSelect.addEventListener('change', () => {
+    if (repeatSelect.value === 'custom') {
+      customRepeatDiv.style.display = 'block';
+    } else {
+      customRepeatDiv.style.display = 'none';
+    }
+  });
+  
+  // Handle cancel
+  cancelBtn.addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
+  
+  // Handle save
+  saveBtn.addEventListener('click', () => {
+    const title = titleInput.value.trim();
+    if (!title) {
+      alert('Please enter an event title');
+      return;
+    }
+    
+    const isAllDay = allDayCheckbox.checked;
+    const startDate = new Date(startDateInput.value);
+    const endDate = new Date(endDateInput.value);
+    
+    if (!isAllDay) {
+      const [startHour, startMinute] = startTimeInput.value.split(':').map(Number);
+      const [endHour, endMinute] = endTimeInput.value.split(':').map(Number);
+      
+      startDate.setHours(startHour, startMinute);
+      endDate.setHours(endHour, endMinute);
+    }
+    
+    const eventData = {
+      id: existingEvent ? existingEvent.id : generateEventId(),
+      title,
+      start: isAllDay ? startDate.toISOString().split('T')[0] : startDate.toISOString(),
+      end: isAllDay ? endDate.toISOString().split('T')[0] : endDate.toISOString(),
+      allDay: isAllDay,
+      description: descriptionInput.value.trim(),
+      repeat: repeatSelect.value === 'none' ? null : {
+        frequency: repeatSelect.value,
+        interval: repeatSelect.value === 'custom' ? parseInt(repeatInterval.value) || 1 : 1,
+        customFrequency: repeatSelect.value === 'custom' ? repeatFrequency.value : null
+      }
+    };
+    
+    console.log(existingEvent ? 'Updating event:' : 'Adding event:', eventData);
+    
+    if (existingEvent) {
+      // Update existing event
+      existingEvent.setProp('title', eventData.title);
+      existingEvent.setStart(eventData.start);
+      existingEvent.setEnd(eventData.end);
+      existingEvent.setAllDay(eventData.allDay);
+      existingEvent.setExtendedProp('description', eventData.description);
+      existingEvent.setExtendedProp('repeat', eventData.repeat);
+    } else {
+      // Add new event
+      calendar.addEvent(eventData);
+    }
+    
+    persistCalendar();
+    document.body.removeChild(overlay);
+  });
+  
+  // Handle overlay click to close
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      document.body.removeChild(overlay);
+    }
+  });
+  
+  // Focus title input
+  titleInput.focus();
+}
+
 // ====== Calendar Management ======
 async function mountCalendar() {
   if (calendarBootstrapped) {
@@ -904,11 +1205,20 @@ async function mountCalendar() {
       eventDisplay: 'block',
       
       // Event creation
-      dateClick: handleDateClick,
-      select: handleDateSelect,
+      dateClick: (info) => {
+        console.log('Calendar dateClick triggered:', info);
+        handleDateClick(info);
+      },
+      select: (info) => {
+        console.log('Calendar select triggered:', info);
+        handleDateSelect(info);
+      },
       
       // Event modification
-      eventClick: handleEventClick,
+      eventClick: (info) => {
+        console.log('Calendar eventClick triggered:', info);
+        handleEventClick(info);
+      },
       eventChange: persistCalendar,
       eventAdd: persistCalendar,
       eventRemove: persistCalendar,
@@ -938,6 +1248,8 @@ async function mountCalendar() {
     calendarBootstrapped = true;
     
     console.log('Calendar initialized successfully');
+    console.log('Calendar object:', calendar);
+    console.log('Calendar element:', calendarEl);
     
   } catch (error) {
     console.error('Failed to mount calendar:', error);
@@ -946,58 +1258,46 @@ async function mountCalendar() {
 }
 
 function handleDateClick(info) {
-  const title = prompt('Enter event title:');
-  if (!title || !title.trim()) return;
-  
-  const eventData = {
-    id: generateEventId(),
-    title: title.trim(),
+  console.log('Date clicked:', info);
+  showEventDialog({
     start: info.dateStr,
     allDay: true
-  };
-  
-  calendar.addEvent(eventData);
-  persistCalendar();
+  });
 }
 
 function handleDateSelect(info) {
-  const title = prompt('Enter event title:');
-  if (!title || !title.trim()) {
-    calendar.unselect();
-    return;
-  }
-  
-  const eventData = {
-    id: generateEventId(),
-    title: title.trim(),
+  console.log('Date select triggered:', info);
+  showEventDialog({
     start: info.startStr,
     end: info.endStr,
     allDay: info.allDay
-  };
-  
-  calendar.addEvent(eventData);
+  });
   calendar.unselect();
-  persistCalendar();
 }
 
 function handleEventClick(info) {
-  const action = prompt(
-    `Event: "${info.event.title}"\n\nEnter new title (leave empty to delete):`,
-    info.event.title
-  );
+  console.log('Event clicked:', info);
   
-  if (action === null) return; // Cancelled
+  // Show context menu or edit dialog
+  const action = confirm(`Event: "${info.event.title}"\n\nClick OK to edit, Cancel to delete`);
   
-  if (action.trim() === '') {
+  if (action) {
+    // Edit event - show dialog with current event data
+    const eventData = {
+      title: info.event.title,
+      start: info.event.startStr || info.event.start.toISOString(),
+      end: info.event.endStr || (info.event.end ? info.event.end.toISOString() : null),
+      allDay: info.event.allDay,
+      description: info.event.extendedProps?.description || ''
+    };
+    
+    showEventDialog(eventData, info.event);
+  } else {
     // Delete event
     if (confirm('Delete this event?')) {
       info.event.remove();
       persistCalendar();
     }
-  } else {
-    // Update event
-    info.event.setProp('title', action.trim());
-    persistCalendar();
   }
 }
 
